@@ -1,4 +1,20 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
+# Copyright 2017 Th!nk Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+#------------------------------
+#
 # Copyright 2011 Craig Campbell
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,16 +31,16 @@
 
 import sys, re, glob, os
 from operator import itemgetter
-from util import Util
-from varfactory import VarFactory
-from sizetracker import SizeTracker
+from .util import Util
+from .varfactory import VarFactory
+from .sizetracker import SizeTracker
 
-class Muncher(object):
+class Obsfucator(object):
     def __init__(self, config):
         """constructor
 
         Returns:
-        void
+        None
 
         """
         self.id_counter = {}
@@ -36,47 +52,47 @@ class Muncher(object):
     @staticmethod
     def showUsage():
         """shows usage information for this script"""
-        print "\n---------------------------------"
-        print " html-muncher"
-        print "---------------------------------"
+        print("\n---------------------------------")
+        print(" TODO: replace this with argparse")
+        print("---------------------------------")
 
-        print "\n" + '\033[91m' + "USAGE:" + '\033[0m'
-        print "munch --css file1.css,/path/to/css1,file2.css,file3.css --html /path/to/views1,file1.html,/path/to/views2/,file3.html --js main.js,/path/to/js"
-        print "\n" + '\033[91m' + "REQUIRED ARGUMENTS:" + '\033[0m'
-        print "--html {path/to/views}       html files to rewrite (comma separated list of directories and files)"
-        print "\n" + '\033[91m' + "OPTIONAL ARGUMENTS:" + '\033[0m'
-        print "--css {path/to/css}          css files to rewrite (comma separated list of directories and files)"
-        print ""
-        print "--js {path/to/js}            js files to rewrite (comma separated list of directories and files)"
-        print ""
-        print "--view-ext {extension}       sets the extension to look for in the view directory (defaults to html)"
-        print ""
-        print "--ignore {classes,ids}       comma separated list of classes or ids to ignore when rewriting css (ie .sick_class,#sweet_id)"
-        print ""
-        print "--compress-html              strips new line characters to compress html files specified with --html"
-        print "                             be careful when using this becuase it has not been thoroughly tested"
-        print ""
-        print "--framework                  name of js framework to use for selectors (currently only jquery or mootools)"
-        print ""
-        print "--selectors                  comma separated custom selectors using css selectors"
-        print "                             for example if you have $.qs(\"#test .div\") this param would be qs"
-        print ""
-        print "--id-selectors               comma separated id selectors with strings"
-        print "                             for example if you are using .addId(\"test\") this param would be addId"
-        print ""
-        print "--class-selectors            comma separated class selectors with strings"
-        print "                             for example if you have selectClass(\"my_class\") this param would be selectClass"
-        print ""
-        print "--js-manifest                path to a js file containing class name/id constants"
-        print ""
-        print "--rewrite-constants          when using a manifest file this will take any constants with values as strings"
-        print "                             and rewrite the values to be numbers"
-        print ""
-        print "--show-savings               will output how many bytes were saved by munching"
-        print ""
-        print "--verbose                    output more information while the script runs"
-        print ""
-        print "--help                       shows this menu\n"
+        print("\n" + '\033[91m' + "USAGE:" + '\033[0m')
+        print("obsfucate-css-selectors --css file1.css,/path/to/css1,file2.css,file3.css --html /path/to/views1,file1.html,/path/to/views2/,file3.html --js main.js,/path/to/js")
+        print("\n" + '\033[91m' + "REQUIRED ARGUMENTS:" + '\033[0m')
+        print("--html {path/to/views}       html files to rewrite (comma separated list of directories and files)")
+        print("\n" + '\033[91m' + "OPTIONAL ARGUMENTS:" + '\033[0m')
+        print("--css {path/to/css}          css files to rewrite (comma separated list of directories and files)")
+        print("")
+        print("--js {path/to/js}            js files to rewrite (comma separated list of directories and files)")
+        print("")
+        print("--view-ext {extension}       sets the extension to look for in the view directory (defaults to html)")
+        print("")
+        print("--ignore {classes,ids}       comma separated list of classes or ids to ignore when rewriting css (ie .sick_class,#sweet_id)")
+        print("")
+        print("--compress-html              strips new line characters to compress html files specified with --html")
+        print("                             be careful when using this becuase it has not been thoroughly tested")
+        print("")
+        print("--framework                  name of js framework to use for selectors (currently only jquery or mootools)")
+        print("")
+        print("--selectors                  comma separated custom selectors using css selectors")
+        print("                             for example if you have $.qs(\"#test .div\") this param would be qs")
+        print("")
+        print("--id-selectors               comma separated id selectors with strings")
+        print("                             for example if you are using .addId(\"test\") this param would be addId")
+        print("")
+        print("--class-selectors            comma separated class selectors with strings")
+        print("                             for example if you have selectClass(\"my_class\") this param would be selectClass")
+        print("")
+        print("--js-manifest                path to a js file containing class name/id constants")
+        print("")
+        print("--rewrite-constants          when using a manifest file this will take any constants with values as strings")
+        print("                             and rewrite the values to be numbers")
+        print("")
+        print("--show-savings               will output how many bytes were saved by munching")
+        print("")
+        print("--verbose                    output more information while the script runs")
+        print("")
+        print("--help                       shows this menu\n")
         sys.exit(2)
 
     def run(self):
@@ -139,7 +155,7 @@ class Muncher(object):
         if verbose_only and not self.config.verbose:
             return
 
-        print text
+        print(text)
 
     def processCssDirectory(self, file):
         """processes a directory of css files
@@ -350,11 +366,11 @@ class Muncher(object):
     def optimizeJsManifest(self):
         contents = Util.fileGetContents(self.config.js_manifest)
 
-        for key, value in self.manifest_ids.items():
+        for key, value in list(self.manifest_ids.items()):
             if "#" + value in self.id_map:
                 contents = re.sub(r'((?<!\$)\${1}[A-Z0-9_]+\s?=\s?[\'|\"])(' + value + ')([\'|\"][,|;])', r'\1' + self.id_map["#" + value].replace("#", "") + r'\3', contents)
 
-        for key, value in self.manifest_classes.items():
+        for key, value in list(self.manifest_classes.items()):
             if "." + value in self.class_map:
                 contents = re.sub(r'(\${2}[A-Z0-9_]+\s?=\s?[\'|\"])(' + value + ')([\'|\"][,|;])', r'\1' + self.class_map["." + value].replace(".", "") + r'\3', contents)
 
@@ -386,7 +402,7 @@ class Muncher(object):
 
         """
         # reverse sort so we can figure out the biggest savings
-        classes = self.class_counter.items()
+        classes = list(self.class_counter.items())
         classes.sort(key = itemgetter(1), reverse=True)
 
         for class_name, savings in classes:
@@ -400,7 +416,7 @@ class Muncher(object):
 
             self.class_map[class_name] = small_class
 
-        ids = self.id_counter.items()
+        ids = list(self.id_counter.items())
         ids.sort(key = itemgetter(1), reverse=True)
 
         for id, savings in ids:
@@ -698,7 +714,7 @@ class Muncher(object):
         string
 
         """
-        for key, value in self.id_map.items():
+        for key, value in list(self.id_map.items()):
             key = key[1:]
             value = value[1:]
             html = html.replace("id=\"" + key + "\"", "id=\"" + value + "\"")
@@ -741,7 +757,7 @@ class Muncher(object):
         string
 
         """
-        for key, value in self.class_map.items():
+        for key, value in list(self.class_map.items()):
             key = key[1:]
             value = value[1:]
             class_blocks = re.findall(r'class\=((\'|\")(.*?)(\'|\"))', html)
@@ -811,7 +827,7 @@ class Muncher(object):
 
         """
         # this really should be done better
-        for key, value in dictionary.items():
+        for key, value in list(dictionary.items()):
             css = css.replace(key + "{", value + "{")
             css = css.replace(key + " {", value + " {")
             css = css.replace(key + "#", value + "#")
@@ -917,7 +933,7 @@ class Muncher(object):
         string
 
         """
-        for key, value in dictionary.items():
+        for key, value in list(dictionary.items()):
             blocks = self.getJsSelectors(js, self.config)
             for block in blocks:
                 if key[0] == "#" and block[0] in self.config.class_selectors:

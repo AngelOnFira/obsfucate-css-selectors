@@ -2,12 +2,12 @@
 
 from setuptools import setup
 
-setup(name='htmlmuncher',
+setup(name='obsfucate-css-selectors',
     version='1.0',
     description='Utility that rewrites CSS, HTML, and JavaScript files in order to save bytes and obfuscate your code.',
-    author='Craig Campbell',
-    author_email='iamcraigcampbell@gmail.com',
-    url='http://htmlmuncher.com',
-    packages=['muncher'],
-    scripts=['munch']
+    author='YetAnotherMinion, Craig Campbell',
+    author_email='opensource@thinkalexandria.com',
+    #url='http://i',
+    packages=['ruminatecss'],
+    scripts=['obsfucate-css-selectors']
 )

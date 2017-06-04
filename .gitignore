@@ -5,3 +5,7 @@
 demo/css_opt
 demo/js_opt
 demo/views_opt
+venv/
+
+# generated log files
+main.log

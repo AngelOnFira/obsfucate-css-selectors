@@ -35,6 +35,5 @@ from ruminatecss.config import Config
 from ruminatecss.obsfucator import Obsfucator
 
 config = Config()
-config.processArgs()
 obsfucator = Obsfucator(config)
 obsfucator.run()

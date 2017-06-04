@@ -30,70 +30,40 @@
 # limitations under the License.
 
 import sys, re, glob, os
+import logging
 from operator import itemgetter
-from .util import Util
-from .varfactory import VarFactory
-from .sizetracker import SizeTracker
+from .util import Util, generate_gzip_friendly_tokens
+
+import tinycss
+import slimit
+import bs4
+from slimit.parser import Parser
+from slimit.visitors import nodevisitor
+from slimit import ast
+
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+ch = logging.StreamHandler()
+ch.setLevel(logging.INFO)
+ch.setFormatter(formatter)
+logger.addHandler(ch)
+# Log all of the details to file log so build slave runs can be debugged
+fh = logging.FileHandler("main.log")
+fh.setLevel(logging.DEBUG)
+fh.setFormatter(formatter)
+logger.addHandler(fh)
 
 class Obsfucator(object):
     def __init__(self, config):
-        """constructor
-
-        Returns:
-        None
-
-        """
-        self.id_counter = {}
-        self.class_counter = {}
+        self.ids_found = set()
+        self.classes_found = set()
         self.id_map = {}
         self.class_map = {}
         self.config = config
-
-    @staticmethod
-    def showUsage():
-        """shows usage information for this script"""
-        print("\n---------------------------------")
-        print(" TODO: replace this with argparse")
-        print("---------------------------------")
-
-        print("\n" + '\033[91m' + "USAGE:" + '\033[0m')
-        print("obsfucate-css-selectors --css file1.css,/path/to/css1,file2.css,file3.css --html /path/to/views1,file1.html,/path/to/views2/,file3.html --js main.js,/path/to/js")
-        print("\n" + '\033[91m' + "REQUIRED ARGUMENTS:" + '\033[0m')
-        print("--html {path/to/views}       html files to rewrite (comma separated list of directories and files)")
-        print("\n" + '\033[91m' + "OPTIONAL ARGUMENTS:" + '\033[0m')
-        print("--css {path/to/css}          css files to rewrite (comma separated list of directories and files)")
-        print("")
-        print("--js {path/to/js}            js files to rewrite (comma separated list of directories and files)")
-        print("")
-        print("--view-ext {extension}       sets the extension to look for in the view directory (defaults to html)")
-        print("")
-        print("--ignore {classes,ids}       comma separated list of classes or ids to ignore when rewriting css (ie .sick_class,#sweet_id)")
-        print("")
-        print("--compress-html              strips new line characters to compress html files specified with --html")
-        print("                             be careful when using this becuase it has not been thoroughly tested")
-        print("")
-        print("--framework                  name of js framework to use for selectors (currently only jquery or mootools)")
-        print("")
-        print("--selectors                  comma separated custom selectors using css selectors")
-        print("                             for example if you have $.qs(\"#test .div\") this param would be qs")
-        print("")
-        print("--id-selectors               comma separated id selectors with strings")
-        print("                             for example if you are using .addId(\"test\") this param would be addId")
-        print("")
-        print("--class-selectors            comma separated class selectors with strings")
-        print("                             for example if you have selectClass(\"my_class\") this param would be selectClass")
-        print("")
-        print("--js-manifest                path to a js file containing class name/id constants")
-        print("")
-        print("--rewrite-constants          when using a manifest file this will take any constants with values as strings")
-        print("                             and rewrite the values to be numbers")
-        print("")
-        print("--show-savings               will output how many bytes were saved by munching")
-        print("")
-        print("--verbose                    output more information while the script runs")
-        print("")
-        print("--help                       shows this menu\n")
-        sys.exit(2)
+        # TODO: figure out if we want to keep this huge class and move the logger
+        # object into the appropriate scope
+        self.logger = logger
 
     def run(self):
         """runs the optimizer and does all the magic
@@ -102,60 +72,34 @@ class Obsfucator(object):
         void
 
         """
-        self.output("searching for classes and ids...", False)
+        self.logger.info("searching for classes and ids...")
 
-        if self.config.js_manifest is not None:
-            self.outputJsWarnings()
 
         self.processCss()
-        self.processViews()
+        for filepath in self.config.views:
+            if not Util.isDir(filepath):
+                self.processView(filepath)
+                continue
+            self.processViewDirectory(filepath)
 
-        if self.config.js_manifest is None:
-            self.processJs()
-        else:
-            self.processJsManifest()
 
-        self.output("mapping classes and ids to new names...", False)
+        self.logger.info("mapping classes and ids to new names...")
         # maps all classes and ids found to shorter names
-        self.processMaps()
+        self.generateMaps()
 
         # optimize everything
-        self.output("munching css files...", False)
+        self.logger.info("munching css files...")
         self.optimizeFiles(self.config.css, self.optimizeCss)
 
-        self.output("munching html files...", False)
-        self.optimizeFiles(self.config.views, self.optimizeHtml, self.config.view_extension, self.config.compress_html)
+        self.logger.info("munching html files...")
+        self.optimizeFiles(self.config.views, self.config.view_extension)
 
-        self.output("munching js files...", False)
+        self.logger.info("munching js files...")
+        self.optimizeFiles(self.config.js, self.optimizeJavascript)
 
-        if self.config.js_manifest is None:
-            self.optimizeFiles(self.config.js, self.optimizeJavascript)
-        else:
-            self.optimizeJsManifest()
+        self.logger.info("done")
 
-        self.output("done", False)
-
-        if self.config.show_savings:
-            self.output(SizeTracker.savings(), False)
-
-    def outputJsWarnings(self):
-        pass
-
-    def output(self, text, verbose_only = True):
-        """outputs text during the script run
-
-        Arguments:
-        text -- string of text to output
-        verbose_only -- should we only show this in verbose mode?
-
-        Returns:
-        void
-
-        """
-        if verbose_only and not self.config.verbose:
-            return
-
-        print(text)
+        # TODO: compute space savings???
 
     def processCssDirectory(self, file):
         """processes a directory of css files
@@ -211,53 +155,6 @@ class Obsfucator(object):
 
             self.processView(dir_file)
 
-    def processViews(self):
-        """processes all view files
-
-        Returns:
-        void
-
-        """
-        files = self.config.views
-        for file in files:
-            if not Util.isDir(file):
-                self.processView(file)
-                continue
-            self.processViewDirectory(file)
-
-    def processJsDirectory(self, file):
-        """processes a directory of js files
-
-        Arguments:
-        file -- path to directory
-
-        Returns:
-        void
-
-        """
-        if ".svn" in file:
-            return
-
-        for dir_file in Util.getFilesFromDir(file):
-            if Util.isDir(dir_file):
-                self.processJsDirectory(dir_file)
-                continue
-            self.processJsFile(dir_file)
-
-    def processJs(self):
-        """gets all js files from config and processes them to see what to replace
-
-        Returns:
-        void
-
-        """
-        files = self.config.js
-        for file in files:
-            if not Util.isDir(file):
-                self.processJsFile(file)
-                continue
-            self.processJsDirectory(file)
-
     def processView(self, file):
         """processes a single view file
 
@@ -266,7 +163,6 @@ class Obsfucator(object):
 
         """
         self.processCssFile(file, True)
-        self.processJsFile(file, True)
 
     def processCssFile(self, path, inline = False):
         """processes a single css file to find all classes and ids to replace
@@ -278,6 +174,33 @@ class Obsfucator(object):
         void
 
         """
+
+
+        # Take the raw list of tokens produced by tinycss and find all the classnames
+        # and return them as a list
+        def get_classes_from_token_list(token_list):
+            css_classes = []
+            begin_class = False
+            for token in token_list:
+                if token.type == "DELIM" and token.value == ".":
+                    begin_class = True
+                elif token.type == "IDENT" and begin_class:
+                    css_classes.append(token.value)
+                else:
+                    begin_class = False
+            return css_classes
+
+        # Take the raw list of tokens produced by tinycss and find all the ids
+        # and return them as a list
+        def get_ids_from_token_list(token_list):
+            css_ids = []
+            for token in token_list:
+                if token.type == "HASH":
+                    css_ids.append(token.value)
+            return css_ids
+
+        # assume the css file is small enought to be read completely into memory
+        # TODO: enforce this assumption by stating the file
         contents = Util.fileGetContents(path)
         if inline is True:
             blocks = self.getCssBlocks(contents)
@@ -285,10 +208,15 @@ class Obsfucator(object):
             for block in blocks:
                 contents = contents + block
 
-        ids_found = re.findall(r'((?<!\:\s)(?<!\:)#\w+)(\.|\{|,|\s|#)', contents, re.DOTALL)
-        classes_found = re.findall(r'(?!\.[0-9])\.\w+', contents)
-        self.addIds(ids_found)
-        self.addClasses(classes_found)
+
+        stylesheet = tinycss.make_parser().parse_stylesheet(contents)
+
+        for rule in stylesheet.rules:
+            for found_class in get_classes_from_token_list(rule.selector):
+                self.addClass(found_class)
+
+            for found_id in get_ids_from_token_list(rule.selector):
+                self.addId(found_id)
 
     def processJsFile(self, path, inline = False):
         """processes a single js file to find all classes and ids to replace
@@ -307,7 +235,6 @@ class Obsfucator(object):
             for block in blocks:
                 contents = contents + block
 
-        selectors = self.getJsSelectors(contents, self.config)
         for selector in selectors:
             if selector[0] in self.config.id_selectors:
                 if ',' in selector[2]:
@@ -347,79 +274,29 @@ class Obsfucator(object):
 
                     self.addClass(match[0])
 
-    def processJsManifest(self):
-        contents = Util.fileGetContents(self.config.js_manifest)
-        ids = re.findall(r'\s+?(var\s)?\${1}([A-Z0-9_]+)\s?=\s?[\'|\"](.*?)[\'|\"][,|;]', contents)
-        classes = re.findall(r'\s+?(var\s)?\${2}([A-Z0-9_]+)\s?=\s?[\'|\"](.*?)[\'|\"][,|;]', contents)
 
-        self.manifest_ids = {}
-        self.manifest_classes = {}
-
-        for id in ids:
-            self.addId("#" + id[2])
-            self.manifest_ids[id[1]] = id[2]
-
-        for manifest_class in classes:
-            self.addClass("." + manifest_class[2])
-            self.manifest_classes[manifest_class[1]] = manifest_class[2]
-
-    def optimizeJsManifest(self):
-        contents = Util.fileGetContents(self.config.js_manifest)
-
-        for key, value in list(self.manifest_ids.items()):
-            if "#" + value in self.id_map:
-                contents = re.sub(r'((?<!\$)\${1}[A-Z0-9_]+\s?=\s?[\'|\"])(' + value + ')([\'|\"][,|;])', r'\1' + self.id_map["#" + value].replace("#", "") + r'\3', contents)
-
-        for key, value in list(self.manifest_classes.items()):
-            if "." + value in self.class_map:
-                contents = re.sub(r'(\${2}[A-Z0-9_]+\s?=\s?[\'|\"])(' + value + ')([\'|\"][,|;])', r'\1' + self.class_map["." + value].replace(".", "") + r'\3', contents)
-
-        if self.config.rewrite_constants:
-            constants = re.findall(r'(\s+?(var\s)?([A-Z0-9_]+)\s?=\s?[\'|\"](.*?)[\'|\"][,|;])', contents)
-            new_constants = {}
-            i = 0
-            for constant in constants:
-                # underscore variables are ignored
-                if constant[2][0] == "_":
-                    continue
-
-                i += 1
-                new_constant = re.sub(r'=(.*)([,|;])','= ' + str(i) + r'\2', constant[0])
-                contents = contents.replace(constant[0], new_constant)
-
-        new_manifest = Util.prependExtension("opt", self.config.js_manifest)
-        Util.filePutContents(new_manifest, contents)
-
-        if self.config.show_savings:
-            SizeTracker.trackFile(self.config.js_manifest, new_manifest)
-
-    def processMaps(self):
-        """loops through classes and ids to process to determine shorter names to use for them
+    def generateMaps(self):
+        """
+loops through classes and ids to process to determine shorter names to use for them
         and creates a dictionary with these mappings
 
         Returns:
         void
 
         """
-        # reverse sort so we can figure out the biggest savings
-        classes = list(self.class_counter.items())
-        classes.sort(key = itemgetter(1), reverse=True)
+        selector_translation_generator = generate_gzip_friendly_tokens(None)
 
-        for class_name, savings in classes:
-            small_class = "." + VarFactory.getNext("class")
+        for class_name, new_class_name in zip(self.classes_found, selector_translation_generator):
 
-            # adblock extensions may block class "ad" so we should never generate it
-            # also if the generated class already exists as a class to be processed
-            # we can't use it or bad things will happen
-            while small_class == ".ad" or Util.keyInTupleList(small_class, classes):
-                small_class = "." + VarFactory.getNext("class")
+            # adblock extensions may block class "ad" so we should never
+            # generate it also if the generated class already exists as a class
+            # to be processed we can't use it or bad things will happen
+            while new_class_name == "ad" or Util.keyInTupleList(new_class_name, classes):
+                new_class_name = selector_translation_generator.next()
 
-            self.class_map[class_name] = small_class
+            self.class_map[class_name] = new_class_name
 
-        ids = list(self.id_counter.items())
-        ids.sort(key = itemgetter(1), reverse=True)
-
-        for id, savings in ids:
+        for id_name, new_id_name in zip(self.ids_found, selector_translation_generator):
             small_id = "#" + VarFactory.getNext("id")
 
             # same holds true for ids as classes
@@ -428,88 +305,26 @@ class Obsfucator(object):
 
             self.id_map[id] = small_id
 
-    def incrementIdCounter(self, name):
-        """called for every time an id is added to increment the bytes we will save
 
-        Arguments:
-        name -- string of id
-
-        Returns:
-        void
-
-        """
-        length = len(name)
-
-        if not name in self.id_counter:
-            self.id_counter[name] = length
-            return
-
-        self.id_counter[name] += length
-
-    def incrementClassCounter(self, name):
-        """called for every time a class is added to increment the bytes we will save
-
-        Arguments:
-        name -- string of class
-
-        Returns:
-        void
-
-        """
-        length = len(name)
-
-        if not name in self.class_counter:
-            self.class_counter[name] = length
-            return
-
-        self.class_counter[name] += length
-
-    def incrementCounter(self, name):
-        """called everytime a class or id is added
-
-        Arguments:
-        name -- string of class or id name
-
-        Returns:
-        void
-
-        """
-        if name[0] == "#":
-            return self.incrementIdCounter(name)
-
-        return self.incrementClassCounter(name)
-
-    def addId(self, id):
+    def addId(self, selector):
         """adds a single id to the master list of ids
 
         Arguments:
-        id -- single id to add
+        selector -- single id to add
 
         Returns:
         void
 
         """
-        if id in self.config.ignore or id is '#':
+        if selector in self.config.ignore or id == '#':
             return
 
         # skip $ ids from manifest
-        if self.config.js_manifest is not None and id[1] == '$':
+        if self.config.js_manifest is not None and selector[1] == '$':
             return
 
-        self.incrementCounter(id)
+        self.ids_found.add(selector)
 
-    def addIds(self, ids):
-        """adds a list of ids to the master id list to replace
-
-        Arguments:
-        ids -- list of ids to add
-
-        Returns:
-        void
-
-        """
-        for id in ids:
-            self.addId(id[0])
 
     def addClass(self, class_name):
         """adds a single class to the master list of classes
@@ -518,7 +333,7 @@ class Obsfucator(object):
         class_name -- single class to add
 
         Returns:
-        void
+        None
 
         """
         if class_name in self.config.ignore or class_name is '.':
@@ -528,22 +343,9 @@ class Obsfucator(object):
         if self.config.js_manifest is not None and class_name[1:2] == '$$':
             return
 
-        self.incrementCounter(class_name)
+        self.classes_found.add(class_name)
 
-    def addClasses(self, classes):
-        """adds a list of classes to the master class list to replace
-
-        Arguments:
-        classes -- list of classes to add
-
-        Returns:
-        void
-
-        """
-        for class_name in classes:
-            self.addClass(class_name)
-
-    def optimizeFiles(self, paths, callback, extension = "", minimize = False):
+    def optimizeFiles(self, paths, callback, extension = ""):
         """loops through a bunch of files and directories, runs them through a callback, then saves them to disk
 
         Arguments:
@@ -556,18 +358,17 @@ class Obsfucator(object):
         """
         for file in paths:
             if not Util.isDir(file):
-                self.optimizeFile(file, callback, minimize)
+                self.optimizeFile(file, callback)
                 continue
 
-            self.optimizeDirectory(file, callback, extension, minimize)
+            self.optimizeDirectory(file, callback, extension)
 
-    def optimizeFile(self, file, callback, minimize = False, new_path = None, prepend = "opt"):
+    def optimizeFile(self, file, callback, new_path = None, prepend = "opt"):
         """optimizes a single file
 
         Arguments:
         file -- path to file
         callback -- function to run the file through
-        minimize -- whether or not we should minimize the file contents (html)
         prepend -- what extension to prepend
 
         Returns:
@@ -577,10 +378,7 @@ class Obsfucator(object):
         content = callback(file)
         if new_path is None:
             new_path = Util.prependExtension(prepend, file)
-        if minimize is True:
-            self.output("minimizing " + file)
-            content = self.minimize(content)
-        self.output("optimizing " + file + " to " + new_path)
+        self.logger.info("optimizing " + file + " to " + new_path)
         Util.filePutContents(new_path, content)
 
         if self.config.show_savings:
@@ -594,18 +392,17 @@ class Obsfucator(object):
             return False
 
         Util.unlinkDir(path)
-        self.output("creating directory " + path)
+        self.logger.info("creating directory " + path)
         os.mkdir(path)
         return False
 
-    def optimizeDirectory(self, path, callback, extension = "", minimize = False):
+    def optimizeDirectory(self, path, callback, extension = ""):
         """optimizes a directory
 
         Arguments:
         path -- path to directory
         callback -- function to run the file through
         extension -- extension to search for in the directory
-        minimize -- whether or not we should minimize the file contents (html)
 
         Returns:
         void
@@ -618,13 +415,13 @@ class Obsfucator(object):
 
         for dir_file in Util.getFilesFromDir(path, extension):
             if Util.isDir(dir_file):
-                self.optimizeSubdirectory(dir_file, callback, directory, extension, minimize)
+                self.optimizeSubdirectory(dir_file, callback, directory, extension)
                 continue
 
             new_path = directory + "/" + Util.getFileName(dir_file)
-            self.optimizeFile(dir_file, callback, minimize, new_path)
+            self.optimizeFile(dir_file, callback, new_path)
 
-    def optimizeSubdirectory(self, path, callback, new_path, extension = "", minimize = False):
+    def optimizeSubdirectory(self, path, callback, new_path, extension = ""):
         """optimizes a subdirectory within a directory being optimized
 
         Arguments:
@@ -632,7 +429,6 @@ class Obsfucator(object):
         callback -- function to run the file through
         new_path -- path to optimized parent directory
         extension -- extension to search for in the directory
-        minimize -- whether or not we should minimize the file contents (html)
 
         Returns:
         void
@@ -645,17 +441,12 @@ class Obsfucator(object):
 
         for dir_file in Util.getFilesFromDir(path, extension):
             if Util.isDir(dir_file):
-                self.optimizeSubdirectory(dir_file, callback, subdir_path, extension, minimize)
+                self.optimizeSubdirectory(dir_file, callback, subdir_path, extension)
                 continue
 
             new_file_path = subdir_path + "/" + Util.getFileName(dir_file)
-            self.optimizeFile(dir_file, callback, minimize, new_file_path)
+            self.optimizeFile(dir_file, callback, new_file_path)
 
-    def minimize(self, content):
-        content = re.sub(r'\n', '', content)
-        content = re.sub(r'\s\s+', '', content)
-        content = re.sub(r'(<!--(?!\[if)(.*?)-->)', '', content, re.MULTILINE)
-        return content
 
     def optimizeCss(self, path):
         """replaces classes and ids with new values in a css file
@@ -890,70 +681,34 @@ class Obsfucator(object):
         string -- contents to replace file with
 
         """
-        js = Util.fileGetContents(path)
-        return self.replaceJavascript(js)
+        js_content = Util.fileGetContents(path)
 
-    def replaceJavascript(self, js):
-        """single call to handle replacing ids and classes
+        parser = Parser()
+        tree = parser.parse(js_content)
 
-        Arguments:
-        js -- contents of file to replace
+        for node in nodevisitor.visit(tree):
+            if isinstance(node, ast.String):
+                # apparently the value includes the string literal characters so we
+                # need to remove those to get the contents of the string
+                string_contents = node.value.rstrip("'").lstrip("'")
+                # TODO: look for class names within the string instead. Right
+                # now the replace inside javascript only works for elm generated
+                # javascript using elm-css
 
-        Returns:
-        string
+                # We get to conviently ignore the proper escaping of any characters
+                # inside the new value for the string because we are only replacing
+                # css selectors with different valid css selectors restricted to
+                # string.ascii_letters, so there should never be any special
+                # characters to replace. TODO: maybe put a regex here to make sure
+                # that the new value only contains [a-zA-Z]+ as we assume it does
+                if string_contents in self.class_map:
+                    new_value = "'{}'".format(self.class_map[string_contents])
+                    self.logger.info("replacing {} with {}".format(node.value, new_value))
+                    node.value = new_value
+                if string_contents in self.id_map:
+                    new_value = "'{}'".format(self.id_map[string_contents])
+                    self.logger.info("replacing {} with {}".format(node.value, new_value))
+                    node.value = new_value
 
-        """
-        js = self.replaceJsFromDictionary(self.id_map, js)
-        js = self.replaceJsFromDictionary(self.class_map, js)
-        return js
+        return tree.to_ecma()
 
-    @staticmethod
-    def getJsSelectors(js, config):
-        """finds all js selectors within a js block
-
-        Arguments:
-        js -- contents of js file to search
-
-        Returns:
-        list
-
-        """
-        valid_selectors = "|".join(config.custom_selectors) + "|" + "|".join(config.id_selectors) + "|" + "|".join(config.class_selectors)
-        valid_selectors = valid_selectors.replace('$', '\$')
-        return re.findall(r'(' + valid_selectors + ')(\(([^<>]*?)\))', js, re.DOTALL)
-
-    def replaceJsFromDictionary(self, dictionary, js):
-        """replaces any instances of classes and ids based on a dictionary
-
-        Arguments:
-        dictionary -- map of classes or ids to replace
-        js -- contents of javascript to replace
-
-        Returns:
-        string
-
-        """
-        for key, value in list(dictionary.items()):
-            blocks = self.getJsSelectors(js, self.config)
-            for block in blocks:
-                if key[0] == "#" and block[0] in self.config.class_selectors:
-                    continue
-
-                if key[0] == "." and block[0] in self.config.id_selectors:
-                    continue
-
-                old_selector = block[0] + block[1]
-
-                # custom selectors
-                if block[0] in self.config.custom_selectors:
-                    new_selector = old_selector.replace(key + ".", value + ".")
-                    new_selector = new_selector.replace(key + " ", value + " ")
-                    new_selector = new_selector.replace(key + "\"", value + "\"")
-                    new_selector = new_selector.replace(key + "\'", value + "\'")
-                else:
-                    new_selector = old_selector.replace("'" + key[1:] + "'", "'" + value[1:] + "'")
-                    new_selector = new_selector.replace("\"" + key[1:] + "\"", "\"" + value[1:] + "\"")
-
-                js = js.replace(old_selector, new_selector)
-
-        return js

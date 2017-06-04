@@ -1,9 +1,13 @@
+# Warning
+    This codebase is being cleaned up and simplified. Master probably does
+not work right now. Please wait for a tagged release.
+
 # About
 
 This project is a hard fork of [HTML Muncher](https://github.com/ccampbell/html-obsfucate-css-selectorser.git) which appears to have been abandoned in 2011. `obsfucate-css-selectors` is a Python utility that rewrites CSS, HTML, and JavaScript files in order to save precious bytes and obfuscate your code
 
-if your stylesheet starts out looking like this:
-
+if your stylesheet starts out looking like this
+```css
 .file2 #special {
     font-size: 1.5em;
     color: #F737FF;
@@ -19,9 +23,9 @@ if your stylesheet starts out looking like this:
     background: #eee;
     padding: 5px;
 }
-
+```
 it will be rewritten as
-
+```css
 .d #d {
     font-size: 1.5em;
     color: #F737FF;
@@ -37,7 +41,7 @@ it will be rewritten as
     background: #eee;
     padding: 5px;
 }
-
+```
 
 # Installation
 
@@ -52,7 +56,7 @@ python setup.py install
 # Usage
 
 ```bash
-obsfuate-css-selectors --help
+obsfucate-css-selectors --help
 ```
 
 # Examples

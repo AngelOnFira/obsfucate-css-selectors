@@ -30,6 +30,51 @@
 # limitations under the License.
 
 import os, shutil, glob
+import string
+
+
+# Parse the html page and generate potential classnames by taking substrings
+# from elements and strings that appear within the document. If the number of
+# requested tokens exceeds the number of eligible substrings in the document,
+# then the different will be made up by procedurally generating identifiers
+#
+# Our strategy for procedurally generating additional substrings is to take the
+# K most common substrings (where K is chosen to synergize with the deflate
+# compression algorithm dictionary size) and use those substrings as a new
+# alphabet. Then we will generate new substrings by concatenating characters
+# from our new alphabet.
+#
+# TODO: the naive generation system is bad because it does not preserve the
+# frequency distribution of the corpus substrings that make up its alphabet.
+# I would assume that adding a uniform frequency distribution into the document
+# will not help creating efficient huffman trees. An naive approach would be
+# to create tokens such that the frequency distribution of the finite set of
+# generated tokens matches the frequency distribution of the incoming alphabet.
+# The optimal solution seems like it would involve optimizing in the space of
+# huffman trees generated from a finite edit distance.
+def generate_gzip_friendly_tokens(html_corpus):
+    # TODO: parse the html_corpus document and generate the gzip friendly
+    # alphabet
+    alphabet = string.ascii_letters
+    return generator_from_alphabet(alphabet)
+
+def generator_from_alphabet(alphabet):
+    def suffix_generator(depth):
+        if depth > 0:
+            for character in alphabet:
+                for suffix in suffix_generator(depth - 1):
+                    yield character + suffix
+        else:
+            for character in alphabet:
+                yield character
+
+    depth = 0
+    while True:
+        for suffix in suffix_generator(depth):
+            # prefix all classes with X for debug purposes while developing
+            # TODO: remove the 'X' prefix used for debugging
+            yield 'X' + suffix
+        depth += 1
 
 class Util:
     """collection of various utility functions"""

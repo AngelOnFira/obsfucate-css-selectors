@@ -76,33 +76,20 @@ def generator_from_alphabet(alphabet):
             yield 'X' + suffix
         depth += 1
 
+
+def find_all_files(filepath_list):
+    files = []
+    for path in filepath_list:
+        if not os.path.isdir(path):
+            files.append(path)
+        else:
+            for dirname, dirnames, filenames in os.walk(path):
+                for filename in filenames:
+                    files.append(os.path.join(dirname, filename))
+    return files
+
 class Util:
     """collection of various utility functions"""
-    @staticmethod
-    def fileExists(path):
-        """determines if a file exists
-
-        Arguments:
-        path -- path to file on disk
-
-        Returns:
-        bool
-
-        """
-        return os.path.isfile(path)
-
-    @staticmethod
-    def isDir(path):
-        """determines if a path is a directory
-
-        Arguments:
-        path -- path on disk
-
-        Returns:
-        bool
-
-        """
-        return os.path.isdir(path)
 
     @staticmethod
     def getFilesFromDir(path, extension = ""):
@@ -113,19 +100,6 @@ class Util:
 
         return glob.glob(path)
 
-    @staticmethod
-    def dump(obj):
-        """displays an object as a string for debugging
-
-        Arguments:
-        obj -- object
-
-        Returns:
-        string
-
-        """
-        for attr in dir(obj):
-            print("obj.%s = %s" % (attr, getattr(obj, attr)))
 
     @staticmethod
     def getExtension(path):
@@ -176,7 +150,7 @@ class Util:
         void
 
         """
-        if Util.fileExists(path):
+        if os.path.isfile(path):
             os.unlink(path)
 
     @staticmethod
@@ -206,7 +180,7 @@ class Util:
         string
 
         """
-        if not Util.fileExists(path):
+        if not os.path.isfile(path):
             print("file does not exist at path " + path)
             print("skipping")
         file = open(path, "r")

@@ -1,10 +1,11 @@
 *.pyc
-*.opt.html
-*.opt.js
-*.opt.css
+
+# generated tool output from running tests
+*.obsfucated
 demo/css_opt
 demo/js_opt
 demo/views_opt
+
 venv/
 
 # generated log files

@@ -1,3 +1,4 @@
 slimit
 beautifulsoup4
 tinycss2
+ply==3.10

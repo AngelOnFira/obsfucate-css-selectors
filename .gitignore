@@ -1,4 +1,5 @@
 *.pyc
+obsfucate_css_selectors.egg-info/
 
 # generated tool output from running tests
 *.obsfucated
@@ -10,3 +11,6 @@ venv/
 
 # generated log files
 main.log
+
+# vim editor files
+*.swp

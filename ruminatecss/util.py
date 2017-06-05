@@ -55,7 +55,7 @@ import string
 def generate_gzip_friendly_tokens(html_corpus):
     # TODO: parse the html_corpus document and generate the gzip friendly
     # alphabet
-    alphabet = string.ascii_letters
+    alphabet = string.ascii_lowercase
     return generator_from_alphabet(alphabet)
 
 def generator_from_alphabet(alphabet):
@@ -74,6 +74,7 @@ def generator_from_alphabet(alphabet):
             # prefix all classes with X for debug purposes while developing
             # TODO: remove the 'X' prefix used for debugging
             yield 'X' + suffix
+            #yield suffix
         depth += 1
 
 

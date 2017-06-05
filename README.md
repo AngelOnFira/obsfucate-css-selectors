@@ -80,3 +80,11 @@ or you can mix and match files and directories
 ```
 obsfucate-css-selectors --css /my/css/directory,global.css --html /view/directory1,/view/directory2,/view/directory3,template.html
 ```
+
+## Errata
+If you are getting error outputs from slimit.lextab, you can try uninstalling the
+ply python package and reinstalling it (https://github.com/dabeaz/ply/issues/82)
+```
+pip -y uninstall ply
+pip install --no-cache-dir ply
+```

@@ -72,9 +72,18 @@ class Obsfucator(object):
         void
 
         """
-        all_css_files = find_all_files(self.config.css)
-        all_html_files = find_all_files(self.config.views)
-        all_js_files = find_all_files(self.config.js)
+        all_css_files = list(filter( lambda fn: bool(re.search("\.css$", fn))
+                              , find_all_files(self.config.css)
+                              ))
+        self.logger.info(all_css_files)
+        all_html_files = list(filter( lambda fn: bool(re.search("\.html$", fn))
+                               , find_all_files(self.config.views)
+                               ))
+        self.logger.info(all_html_files)
+        all_js_files = list(filter( lambda fn: bool(re.search("\.js$", fn))
+                             , find_all_files(self.config.js)
+                             ))
+        self.logger.info(all_js_files)
         
         self.logger.info("searching for classes and ids...")
         # assume the css file is small enought to be read completely into memory
@@ -161,15 +170,17 @@ loops through classes and ids to process to determine shorter names to use for t
             # adblock extensions may block class "ad" so we should never
             # generate it
             while new_class_name == "ad":
-                new_class_name = selector_translation_generator.next()
+                new_class_name = next(selector_translation_generator)
 
-            self.class_map[class_name] = new_class_name
+            self.class_map[class_name] = new_class_name #+ 'X' + class_name
+            #self.class_map[class_name] = 'X' + class_name
 
         for id_name, new_id_name in zip(self.ids_found, selector_translation_generator):
             while new_id_name == "ad":
-                new_id_name = selector_translation_generator.next()
+                new_id_name = next(selector_translation_generator)
 
             self.id_map[id_name] = new_id_name
+            #self.id_map[id_name] = 'X' + id_name
 
 
     def addId(self, selector):

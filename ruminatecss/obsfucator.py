@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+
 # Copyright 2017 Th!nk Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -41,18 +42,6 @@ from slimit.parser import Parser
 from slimit.visitors import nodevisitor
 from slimit import ast
 
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-ch = logging.StreamHandler()
-ch.setLevel(logging.INFO)
-ch.setFormatter(formatter)
-logger.addHandler(ch)
-# Log all of the details to file log so build slave runs can be debugged
-fh = logging.FileHandler("main.log")
-fh.setLevel(logging.DEBUG)
-fh.setFormatter(formatter)
-logger.addHandler(fh)
 
 class Obsfucator(object):
     def __init__(self, config):
@@ -63,6 +52,20 @@ class Obsfucator(object):
         self.config = config
         # TODO: figure out if we want to keep this huge class and move the logger
         # object into the appropriate scope
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        logger = logging.getLogger(__name__)
+        ch = logging.StreamHandler()
+        if self.config.verbose:
+            ch.setLevel(logging.DEBUG)
+        else:
+            ch.setLevel(logging.ERROR)
+        ch.setFormatter(formatter)
+        logger.addHandler(ch)
+        # Log all of the details to file log so build slave runs can be debugged
+        fh = logging.FileHandler("main.log")
+        fh.setLevel(logging.DEBUG)
+        fh.setFormatter(formatter)
+        logger.addHandler(fh)
         self.logger = logger
 
     def run(self):
@@ -166,21 +169,33 @@ loops through classes and ids to process to determine shorter names to use for t
         """
         selector_translation_generator = generate_gzip_friendly_tokens(None)
 
-        for class_name, new_class_name in zip(self.classes_found, selector_translation_generator):
+        # Note that class and id selectors will be unique
+        for class_name, suffix in zip(self.classes_found, selector_translation_generator):
+            # apply the configured prefix
+            new_class_name = "{prefix}{suffix}".format( prefix=self.config.prefix
+                                                      , suffix=suffix
+                                                      )
             # adblock extensions may block class "ad" so we should never
             # generate it
             while new_class_name == "ad":
-                new_class_name = next(selector_translation_generator)
+                new_class_name = "{prefix}{suffix}".format( prefix=self.config.prefix
+                                                          , suffix=next(selector_translation_generator)
+                                                          )
 
-            self.class_map[class_name] = new_class_name #+ 'X' + class_name
-            #self.class_map[class_name] = 'X' + class_name
+            self.class_map[class_name] = new_class_name
 
-        for id_name, new_id_name in zip(self.ids_found, selector_translation_generator):
+        for id_name, suffix in zip(self.ids_found, selector_translation_generator):
+            # apply the configured prefix
+            new_id_name = "{prefix}{suffix}".format( prefix=self.config.prefix
+                                                      , suffix=suffix
+                                                      )
             while new_id_name == "ad":
                 new_id_name = next(selector_translation_generator)
+                new_id_name = "{prefix}{suffix}".format( prefix=self.config.prefix
+                                                       , suffix=next(selector_translation_generator)
+                                                       )
 
             self.id_map[id_name] = new_id_name
-            #self.id_map[id_name] = 'X' + id_name
 
 
     def addId(self, selector):
@@ -225,22 +240,28 @@ loops through classes and ids to process to determine shorter names to use for t
         string
 
         """
+        def obsfucate_selector(token_list):
+            begin_class = False
+            for token in token_list:
+                if token.type == "literal" and token.value == ".":
+                    begin_class = True
+                else:
+                    if token.type == "ident" and begin_class:
+                        if token.value in self.class_map:
+                            token.value = self.class_map[token.value]
+                    elif token.type == "hash" and token.value in self.id_map:
+                        token.value = self.id_map[token.value]
+                    begin_class = False
+
+
         stylesheet = tinycss2.parse_stylesheet(css)
         for node in stylesheet:
             if node.type == 'qualified-rule':
-                begin_class = False
-                for token in node.prelude:
-                    if token.type == "literal" and token.value == ".":
-                        begin_class = True
-                    elif token.type == "ident" and begin_class:
-                        if token.value in self.class_map:
-                            token.value = self.class_map[token.value]
-                    else:
-                        begin_class = False
+                obsfucate_selector(node.prelude)
 
-                for token in node.prelude:
-                    if token.type == "hash" and token.value in self.id_map:
-                        token.value = self.id_map[token.value]
+            elif node.type == 'at-rule':
+                if node.content is not None:
+                    obsfucate_selector(node.content)
 
         return "".join(list(map(lambda x: x.serialize(), stylesheet)))
 

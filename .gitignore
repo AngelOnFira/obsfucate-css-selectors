@@ -12,5 +12,6 @@ venv/
 # generated log files
 main.log
 
-# vim editor files
+# editor files
 *.swp
+.idea/

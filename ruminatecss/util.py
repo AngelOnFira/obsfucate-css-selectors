@@ -71,10 +71,7 @@ def generator_from_alphabet(alphabet):
     depth = 0
     while True:
         for suffix in suffix_generator(depth):
-            # prefix all classes with X for debug purposes while developing
-            # TODO: remove the 'X' prefix used for debugging
-            yield 'X' + suffix
-            #yield suffix
+            yield suffix
         depth += 1
 
 

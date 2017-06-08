@@ -49,6 +49,8 @@ class Config(object):
                             help='comma separated list of classes or ids to ignore when rewriting css (ie .sick_class,#sweet_id)')
         parser.add_argument('--verbose', default=False,
                             help='output more information while the script runs')
+        parser.add_argument('--prefix', default="",
+                            help='prefix for generated css class names')
 
         args = parser.parse_args()
 
@@ -58,3 +60,4 @@ class Config(object):
         self.ignore = [ x.lstrip(".") for x in args.ignore.split(",") ]
         self.view_extension = "html"
         self.verbose = args.verbose
+        self.prefix = args.prefix

@@ -36,7 +36,7 @@ import argparse
 
 class Config(object):
     def __init__(self):
-        parser = argparse.ArgumentParser(description='Download contents of tumblr blog')
+        parser = argparse.ArgumentParser(description='Obsfucate css selectors in CSS, HTML, and JavaScript files')
         parser.add_argument('--html', default="", required=True,
                             help='comma separated list of directories and files')
         parser.add_argument('--css', default="",

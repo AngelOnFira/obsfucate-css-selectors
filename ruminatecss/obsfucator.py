@@ -298,6 +298,11 @@ loops through classes and ids to process to determine shorter names to use for t
             if new_ids:
                 tag['id'] = new_ids
 
+            # remember to replace for attributes that point to ids as well
+            new_fors = list(map(rewrite_id, filter(lambda y: y is not None, tag.get_attribute_list('for'))))
+            if new_fors:
+                tag['for'] = new_fors
+
         for tag in soup.html.find_all('style'):
             if tag.string is not None:
                 tag.string = self.optimizeCss(tag.string) 

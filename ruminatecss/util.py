@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-#------------------------------
+# ------------------------------
 #
 # Copyright 2011 Craig Campbell
 #
@@ -58,6 +58,7 @@ def generate_gzip_friendly_tokens(html_corpus):
     alphabet = string.ascii_lowercase
     return generator_from_alphabet(alphabet)
 
+
 def generator_from_alphabet(alphabet):
     def suffix_generator(depth):
         if depth > 0:
@@ -86,18 +87,18 @@ def find_all_files(filepath_list):
                     files.append(os.path.join(dirname, filename))
     return files
 
+
 class Util:
     """collection of various utility functions"""
 
     @staticmethod
-    def getFilesFromDir(path, extension = ""):
+    def getFilesFromDir(path, extension=""):
         path = path + "/*"
 
         if not extension == "":
             path = path + "." + extension.lstrip(".")
 
         return glob.glob(path)
-
 
     @staticmethod
     def getExtension(path):

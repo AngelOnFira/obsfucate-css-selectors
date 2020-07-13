@@ -46,10 +46,12 @@ import esprima
 
 class Obsfucator(object):
     def __init__(self, config):
-        self.ids_found = set()
-        self.classes_found = set()
+        self.css_ids_found = set()
+        self.css_classes_found = set()
+
         self.id_map = {}
         self.class_map = {}
+
         self.unlinked_html_classes = set()
         self.unlinked_html_ids = set()
         self.config = config
@@ -198,7 +200,7 @@ class Obsfucator(object):
 
             self.class_map[class_name] = new_class_name
 
-        for id_name, suffix in zip(self.ids_found, selector_translation_generator):
+        for id_name, suffix in zip(self.css_ids_found, selector_translation_generator):
             # apply the configured prefix
             new_id_name = "{prefix}{suffix}".format(
                 prefix=self.config.prefix, suffix=suffix
@@ -225,7 +227,7 @@ class Obsfucator(object):
         if selector in self.config.ignore or id == "#":
             return
 
-        self.ids_found.add(selector)
+        self.css_ids_found.add(selector)
 
     def addClass(self, class_name):
         """adds a single class to the master list of classes
@@ -240,7 +242,7 @@ class Obsfucator(object):
         if class_name in self.config.ignore or class_name == ".":
             return
 
-        self.classes_found.add(class_name)
+        self.css_classes_found.add(class_name)
 
     def optimizeCss(self, css):
         """replaces classes and ids with new values in a css file
@@ -363,10 +365,14 @@ class Obsfucator(object):
         string -- contents to replace file with
 
         """
+
         if not js_content:
             return js_content
 
-        tree = esprima.tokenize(js_content)
+        for class_name in self.css_classes_found:
+            a = re.sub(r"\.{} ".format(class_name), js_content)
+
+                tree = esprima.tokenize(js_content)
 
         for node in tree:
             if node.type == "String":

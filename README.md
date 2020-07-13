@@ -1,6 +1,6 @@
 # Warning
     This codebase is being cleaned up and simplified. Master probably does
-not work right now. Please wait for a tagged release.
+    not work right now. Please wait for a tagged release.
 
 # About
 

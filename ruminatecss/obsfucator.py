@@ -41,6 +41,7 @@ import bs4
 from slimit.parser import Parser
 from slimit.visitors import nodevisitor
 from slimit import ast
+import esprima
 
 
 class Obsfucator(object):
@@ -49,6 +50,8 @@ class Obsfucator(object):
         self.classes_found = set()
         self.id_map = {}
         self.class_map = {}
+        self.unlinked_html_classes = set()
+        self.unlinked_html_ids = set()
         self.config = config
         # TODO: figure out if we want to keep this huge class and move the logger
         # object into the appropriate scope
@@ -265,6 +268,7 @@ class Obsfucator(object):
 
         stylesheet = tinycss2.parse_stylesheet(css)
         for node in stylesheet:
+            print(node)
             if node.type == "qualified-rule":
                 obsfucate_selector(node.prelude)
 
@@ -289,16 +293,24 @@ class Obsfucator(object):
         """
 
         def rewrite_class(x):
-            if x and x in self.class_map:
-                return self.class_map[x]
+            if x:
+                if x in self.class_map:
+                    return self.class_map[x]
+                else:
+                    self.unlinked_html_classes.add(x)
             return x
 
         def rewrite_id(x):
-            if x and x in self.id_map:
-                return self.id_map[x]
+            if x:
+                if x in self.id_map:
+                    return self.id_map[x]
+                else:
+                    self.unlinked_html_ids.add(x)
             return x
 
         soup = bs4.BeautifulSoup(html, "html.parser")
+        print(self.class_map)
+        print(self.id_map)
         for tag in soup.find_all():
             new_classes = list(
                 map(
@@ -328,6 +340,9 @@ class Obsfucator(object):
             if new_fors:
                 tag["for"] = new_fors
 
+        print("There are {} classes in the html that aren't in the stylesheet".format(len(self.unlinked_html_classes)))
+        print("There are {} ids in the html that aren't in the stylesheet".format(len(self.unlinked_html_ids)))
+
         for tag in soup.find_all("style"):
             if tag.string is not None:
                 tag.string = self.optimizeCss(tag.string)
@@ -351,38 +366,40 @@ class Obsfucator(object):
         if not js_content:
             return js_content
 
-        parser = Parser()
-        tree = parser.parse(js_content)
+        tree = esprima.tokenize(js_content)
 
-        for node in nodevisitor.visit(tree):
-            if isinstance(node, ast.String):
+        for node in tree:
+            if node.type == "String":
                 # apparently the value includes the string literal characters so we
                 # need to remove those to get the contents of the string
-                string_contents = node.value.rstrip("'").lstrip("'")
-                # TODO: look for class names within the string instead. Right
-                # now the replace inside javascript only works for elm generated
-                # javascript using elm-css
+                print(node.value)
+                string_contents = node.value.rstrip("'").rstrip("\"").lstrip("'").lstrip("\"")
+                print(string_contents)
 
-                # We get to conviently ignore the proper escaping of any characters
-                # inside the new value for the string because we are only replacing
-                # css selectors with different valid css selectors restricted to
-                # string.ascii_letters, so there should never be any special
-                # characters to replace. TODO: maybe put a regex here to make sure
-                # that the new value only contains [a-zA-Z]+ as we assume it does
-                if string_contents in self.class_map:
-                    new_value = "'{}'".format(self.class_map[string_contents])
-                    self.logger.info(
-                        "replacing {} with {}".format(node.value, new_value)
-                    )
-                    node.value = new_value
-                if string_contents in self.id_map:
-                    new_value = "'{}'".format(self.id_map[string_contents])
-                    self.logger.info(
-                        "replacing {} with {}".format(node.value, new_value)
-                    )
-                    node.value = new_value
+                string_words = string_contents.split(" ")
 
-        return tree.to_ecma()
+                for word in string_words:
+                    if len(word) < 2:
+                        continue
+
+                    # Classes
+                    if word[0] == ".":
+                        if word[1:] in self.class_map.keys():
+                            new_value = "'{}'".format(self.class_map[word[1:]])
+                            self.logger.info(
+                                "replacing {} with {}".format(node.value, new_value)
+                            )
+                            node.value = new_value
+                    # IDs
+                    elif word[0] == "#":
+                        if word[1:] in self.id_map.keys():
+                            new_value = "'{}'".format(self.id_map[word[1:]])
+                            self.logger.info(
+                                "replacing {} with {}".format(node.value, new_value)
+                            )
+                            node.value = new_value
+
+        # return tree.to_ecma()
 
 
 # Take the raw list of tokens produced by tinycss2 and find all the classnames

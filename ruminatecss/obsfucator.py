@@ -38,16 +38,13 @@ from .util import Util, generate_gzip_friendly_tokens, find_all_files
 import tinycss2
 import slimit
 import bs4
-from slimit.parser import Parser
-from slimit.visitors import nodevisitor
-from slimit import ast
 import esprima
 
 
 class Obsfucator(object):
     def __init__(self, config):
-        self.css_ids_found = set()
-        self.css_classes_found = set()
+        self.ids_found = set()
+        self.classes_found = set()
 
         self.id_map = {}
         self.class_map = {}
@@ -126,24 +123,21 @@ class Obsfucator(object):
         for path in all_css_files:
             css = Util.fileGetContents(path)
             replaced_css = self.optimizeCss(css)
-            new_path = path + ".obsfucated"
-            with open(new_path, "w") as f:
+            with open("output/" + path, "w") as f:
                 f.write(replaced_css)
 
         self.logger.info("munching html files...")
         for path in all_html_files:
             html = Util.fileGetContents(path)
             replaced_html = self.optimizeHtml(html)
-            new_path = path + ".obsfucated"
-            with open(new_path, "w") as f:
+            with open("output/" + path, "w") as f:
                 f.write(replaced_html)
 
         self.logger.info("munching js files...")
         for path in all_js_files:
             js_content = Util.fileGetContents(path)
             replaced_js = self.optimizeJavascript(js_content)
-            new_path = path + ".obsfucated"
-            with open(new_path, "w") as f:
+            with open("output/" + path, "w") as f:
                 f.write(replaced_js)
 
         self.logger.info("done")
@@ -200,7 +194,7 @@ class Obsfucator(object):
 
             self.class_map[class_name] = new_class_name
 
-        for id_name, suffix in zip(self.css_ids_found, selector_translation_generator):
+        for id_name, suffix in zip(self.ids_found, selector_translation_generator):
             # apply the configured prefix
             new_id_name = "{prefix}{suffix}".format(
                 prefix=self.config.prefix, suffix=suffix
@@ -227,7 +221,7 @@ class Obsfucator(object):
         if selector in self.config.ignore or id == "#":
             return
 
-        self.css_ids_found.add(selector)
+        self.ids_found.add(selector)
 
     def addClass(self, class_name):
         """adds a single class to the master list of classes
@@ -242,7 +236,7 @@ class Obsfucator(object):
         if class_name in self.config.ignore or class_name == ".":
             return
 
-        self.css_classes_found.add(class_name)
+        self.classes_found.add(class_name)
 
     def optimizeCss(self, css):
         """replaces classes and ids with new values in a css file
@@ -355,6 +349,33 @@ class Obsfucator(object):
 
         return str(soup)
 
+    def analyzeJavascriptString(self, string):
+        new_string = ""
+        string_words = string.split(" ")
+
+        for word in string_words:
+            if len(word) < 2:
+                continue
+
+            # Classes
+            if word[0] == ".":
+                if word[1:] in self.class_map.keys():
+                    new_string += ".{} ".format(self.class_map[word[1:]])
+                else:
+                    new_string += word + " "
+            # IDs
+            elif word[0] == "#":
+                if word[1:] in self.id_map.keys():
+                    new_string += "#{} ".format(self.id_map[word[1:]])
+                else:
+                    new_string += word + " "
+        self.logger.info(
+            "replacing '{}' with '{}'".format(string, new_string)
+        )
+        print("replacing '{}' with '{}'".format(string, new_string))
+
+        return new_string.rstrip() if new_string != "" else string
+
     def optimizeJavascript(self, js_content):
         """optimizes javascript for a specific file
 
@@ -369,43 +390,20 @@ class Obsfucator(object):
         if not js_content:
             return js_content
 
-        for class_name in self.css_classes_found:
-            a = re.sub(r"\.{} ".format(class_name), js_content)
-
-                tree = esprima.tokenize(js_content)
+        tree = esprima.tokenize(js_content)
 
         for node in tree:
             if node.type == "String":
                 # apparently the value includes the string literal characters so we
                 # need to remove those to get the contents of the string
-                print(node.value)
                 string_contents = node.value.rstrip("'").rstrip("\"").lstrip("'").lstrip("\"")
-                print(string_contents)
 
-                string_words = string_contents.split(" ")
+                changed_string = self.analyzeJavascriptString(string_contents)
+                js_content = re.sub(string_contents, changed_string, js_content)
 
-                for word in string_words:
-                    if len(word) < 2:
-                        continue
+                is_css_string = True
 
-                    # Classes
-                    if word[0] == ".":
-                        if word[1:] in self.class_map.keys():
-                            new_value = "'{}'".format(self.class_map[word[1:]])
-                            self.logger.info(
-                                "replacing {} with {}".format(node.value, new_value)
-                            )
-                            node.value = new_value
-                    # IDs
-                    elif word[0] == "#":
-                        if word[1:] in self.id_map.keys():
-                            new_value = "'{}'".format(self.id_map[word[1:]])
-                            self.logger.info(
-                                "replacing {} with {}".format(node.value, new_value)
-                            )
-                            node.value = new_value
-
-        # return tree.to_ecma()
+        return js_content
 
 
 # Take the raw list of tokens produced by tinycss2 and find all the classnames

@@ -10,6 +10,6 @@ setup(
     author_email="yam@thinkalexandria.com",
     url="https://github.com/ThinkAlexandria/obsfucate-css-selectors",
     packages=["ruminatecss"],
-    install_requires=["tinycss2", "beautifulsoup4", "slimit"],
+    install_requires=["tinycss2", "beautifulsoup4", "esprima"],
     scripts=["obsfucate-css-selectors"],
 )

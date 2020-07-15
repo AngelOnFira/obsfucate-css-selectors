@@ -122,21 +122,21 @@ class Obsfucator(object):
         for path in all_css_files:
             css = Util.fileGetContents(path)
             replaced_css = self.optimizeCss(css)
-            with open("output/" + path, "w") as f:
+            with open(path, "w") as f:
                 f.write(replaced_css)
 
         self.logger.info("munching html files...")
         for path in all_html_files:
             html = Util.fileGetContents(path)
             replaced_html = self.optimizeHtml(html)
-            with open("output/" + path, "w") as f:
+            with open(path, "w") as f:
                 f.write(replaced_html)
 
         self.logger.info("munching js files...")
         for path in all_js_files:
             js_content = Util.fileGetContents(path)
             replaced_js = self.optimizeJavascript(js_content)
-            with open("output/" + path, "w") as f:
+            with open(path, "w") as f:
                 f.write(replaced_js)
 
         self.logger.info("done")

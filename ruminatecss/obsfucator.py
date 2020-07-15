@@ -263,7 +263,6 @@ class Obsfucator(object):
 
         stylesheet = tinycss2.parse_stylesheet(css)
         for node in stylesheet:
-            print(node)
             if node.type == "qualified-rule":
                 obsfucate_selector(node.prelude)
 
@@ -305,6 +304,7 @@ class Obsfucator(object):
 
         soup = bs4.BeautifulSoup(html, "html.parser")
         print(self.class_map)
+        print("\n\n\n\n-----------\n\n\n\n")
         print(self.id_map)
         for tag in soup.find_all():
             new_classes = list(
@@ -367,11 +367,10 @@ class Obsfucator(object):
                 if word[1:] in self.id_map.keys():
                     new_string += "#{} ".format(self.id_map[word[1:]])
                 else:
-                    new_string += word + " "
-        self.logger.info(
-            "replacing '{}' with '{}'".format(string, new_string)
-        )
-        print("replacing '{}' with '{}'".format(string, new_string))
+                    new_string += word + " "\
+
+        if new_string != "" and new_string.rstrip() != string.rstrip():
+            print("replacing '{}' with '{}'".format(string, new_string.rstrip()))
 
         return new_string.rstrip() if new_string != "" else string
 
@@ -398,7 +397,8 @@ class Obsfucator(object):
                 string_contents = node.value.rstrip("'").rstrip("\"").lstrip("'").lstrip("\"")
 
                 changed_string = self.analyzeJavascriptString(string_contents)
-                js_content = re.sub(string_contents, changed_string, js_content)
+                if string_contents != changed_string:
+                    js_content = re.sub(string_contents, changed_string, js_content)
 
                 is_css_string = True
 

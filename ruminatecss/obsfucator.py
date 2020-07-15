@@ -398,7 +398,7 @@ class Obsfucator(object):
 
                 changed_string = self.analyzeJavascriptString(string_contents)
                 if string_contents != changed_string:
-                    js_content = re.sub(string_contents, changed_string, js_content)
+                    js_content.replace(string_contents, changed_string)
 
                 is_css_string = True
 

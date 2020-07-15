@@ -36,7 +36,6 @@ from operator import itemgetter
 from .util import Util, generate_gzip_friendly_tokens, find_all_files
 
 import tinycss2
-import slimit
 import bs4
 import esprima
 
